@@ -205,12 +205,6 @@ class Game:
                         self.twist(player)
                     else:
                         break
-            if player.playerTotal>21:
-                #print(player.playerID + "'s total is", player.playerTotal, "BUST!")##
-                nn.BP([0])
-            else:
-                #print((player.playerID + "'s total is " + str(player.playerTotal) + "\n"))##
-                nn.BP([1])
 
             dealer = self.playerList[0]
             dealerCards = self.cards.getCardName(dealer.playerCards)#cards object required?
@@ -237,13 +231,17 @@ class Game:
                     nn.BP([0.5])
             else:
                 #print(best[0], "wins with a score of", best[1])##
-                if best[0] == self.playerList[1].playerID:
+                if best[0] == self.playerList[1].playerID and best[1]<21:
                     self.winCount+=1
+                    nn.BP([0])
+                elif best[0] == self.playerList[1].playerID and best[1]==21:
                     nn.BP([0])
                 else:
                     self.loseCount+=1
                     if self.playerList[1].playerTotal <22:
                         nn.BP([1])
+                    elif self.playerList[1].playerTotal >21:
+                        nn.BP([0])
 
     def twist(self, player):
         #print(player.playerID, "has decided to twist... \n")##
@@ -270,7 +268,7 @@ class Player:
 if __name__ == '__main__':
     start_time = time.time()
     nn = NeuralNetwork()
-    game = Game(1,6,1000000)
+    game = Game(1,6,300000)
 
     print("Win Count:", game.winCount)
     print("Lose Count:", game.loseCount)
