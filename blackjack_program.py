@@ -1,5 +1,5 @@
-import numpy as np
-import time
+import numpy as np #remove draws from the win-rate metric 
+import time #Is the feedback to the neural network appropriate?
 import itertools
 from random import shuffle
 #enumerate isn't required, just loop for each item in the list
