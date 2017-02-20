@@ -1,17 +1,11 @@
 import numpy as np #remove draws from the win-rate metric
-
 import time #Is the feedback to the neural network appropriate?
-
 import itertools
-
-import re
-
 import random
 from random import shuffle
 
 printMode = False
-
-backprop = True
+inverse = False
 
 overallWin = 0
 overallWeights = []
@@ -21,14 +15,33 @@ previousWeights = []
 
 #enumerate isn't required, just loop for each item in the list
 
-#def random(weights):
+def rando(weights):
+    for current in range(len(weights) - 1, -1, -1):
+        for inNode in range(len(weights[current])):
+            if len(weights[current][inNode]) <= 1:
+                rand = random.uniform(0, 0.05)
+                pos = random.choice([True, False])
+                if pos == True:
+                    weights[current][inNode][0] = weights[current][inNode][0] + (rand * weights[current][inNode][0])
+                else:
+                    weights[current][inNode][0] = weights[current][inNode][0] - (rand * weights[current][inNode][0])
+            else:
+                for outNode in range(len(weights[current][inNode])):
+                    rand = random.uniform(0, 0.1)
+                    pos = random.choice([True, False])
+                    if pos ==True:
+                        weights[current][inNode][outNode] = weights[current][inNode][outNode] + rand * weights[current][inNode][outNode]
+                    else:
+                        weights[current][inNode][outNode] = weights[current][inNode][outNode] - rand * weights[current][inNode][outNode]
+    return weights
+
+
 
 class NeuralNetwork: #Need to sort out where the class parameters should go
 
     def __init__(self): #rename hiddenNodeOutput etc #IS THE SELF. ACTUALLY REQUIRED?
 
         #network structure
-
         self.structure = (2,5,5,1) #Each number represents the weights in each layer of the NN
 
         self.weights = []
@@ -45,33 +58,6 @@ class NeuralNetwork: #Need to sort out where the class parameters should go
     def sigmoid(self, z):
 
         return 1/(1+np.exp(-z))
-
-
-    def sphere(self, inputTuple):
-
-        answer=0
-
-        if inputTuple[0] <0:
-
-            input1 = -inputTuple[0]
-
-        else:
-
-            input1 = inputTuple[0]
-
-        if inputTuple[1] <0:
-
-            input2 = -inputTuple[1]
-
-        else:
-
-            input2 = inputTuple[1]
-
-            answer += input1**2 + input2**2
-
-        return answer
-
-
 
     def propagate(self, testSet):
 
@@ -90,16 +76,12 @@ class NeuralNetwork: #Need to sort out where the class parameters should go
             elif i < len(self.structure)-1:
                 self.nodeInputs.append(np.dot(self.nodeOutputs[-1], self.weights[i-1]))
                 self.nodeOutputs.append(self.sigmoid(self.nodeInputs[-1]))
-
             else:
-
                 self.nodeInputs.append(np.dot(self.nodeOutputs[-1], self.weights[i-1]))
 
                 self.nodeOutputs.append(self.sigmoid(self.nodeInputs[-1]))
 
         return(self.nodeOutputs[-1])
-
-        #print("=====ACTUAL OUTPUT=======", self.nodeOutputs[-1])
 
     def BP(self,expected):
 
@@ -127,17 +109,13 @@ class NeuralNetwork: #Need to sort out where the class parameters should go
 
                             self.nodeOutputs[-1][outNode] * (1 - self.nodeOutputs[-1][outNode])) * self.nodeOutputs[-2][
 
-                                                  inNode]])  # WILL THIS GROUP THEM?
+                                                  inNode]])
 
                 self.deltas.append(lastLayer)
 
                 layerDeltas = []
 
-
-
             elif current == len(self.weights) - 2:
-
-                # for layer in range(current):
 
                 layer = current
 
@@ -174,7 +152,6 @@ class NeuralNetwork: #Need to sort out where the class parameters should go
                 node2Error = []
 
                 intermediate = []
-
 
 
                 for node0 in range(len(self.nodeOutputs[0])):
@@ -234,8 +211,6 @@ class Cards:
 
     discardPile = []
 
-
-
     def __init__(self, decks):
 
         self.deckSize = decks
@@ -256,14 +231,10 @@ class Cards:
 
 
     def getCardName(self, cards): # takes in a list, do we need self here?
-
         output = []
         for card in cards:
-
             if card[1] <= 10:
-
                 output.append((str(card[1]) + ' of ' + str(card[0]), card[1]))
-
             elif card[1] == 11:
 
                 output.append(('Jack of' + ' ' + card[0], 10))
@@ -303,10 +274,8 @@ class Game:
 
     counter = 0
 
-
-
-    def __init__(self, numberOfPlayers,decks, hands):
-
+    def __init__(self, numberOfPlayers,decks, hands, agent):
+        self.agent = agent
         self.playerCount = numberOfPlayers
         self.cards = Cards(decks)
         self.handCount = hands
@@ -325,7 +294,7 @@ class Game:
         for i in range(self.handCount):
             win = False
             if printMode == True:
-                print(i+1)
+                print(i + 1)
             for player in self.playerList:
 
                 player.playerCards = []
@@ -334,21 +303,20 @@ class Game:
 
                 player.aces = 0
 
-                cards =  self.cards.deal(2) #deal cards to players -> [("diamonds", 10), ("diamonds", 9)]
+                cards = self.cards.deal(2)  # deal cards to players -> [("diamonds", 10), ("diamonds", 9)]
 
-                if cards[0][1]==14:
+                if cards[0][1] == 14:
+                    player.aces += 1
 
-                    player.aces+=1
-
-                if cards[1][1]==14:
-
-                    player.aces+=1
+                if cards[1][1] == 14:
+                    player.aces += 1
 
                 player.playerCards = cards
 
-                dealtCards = self.cards.getCardName(player.playerCards) #could save this as a separate variable in player class
+                dealtCards = self.cards.getCardName(
+                    player.playerCards)  # could save this as a separate variable in player class
 
-                if player.aces!=2:
+                if player.aces != 2:
 
                     player.playerTotal = dealtCards[0][1] + dealtCards[1][1]
 
@@ -356,85 +324,143 @@ class Game:
 
                     player.playerTotal = 12
 
-                    player.aces-=1
+                    player.aces -= 1
 
-                if player.playerID !="Dealer":
+                if player.playerID != "Dealer":
                     if printMode == True:
-                        print(player.playerID + "'s cards are the", dealtCards[0][0],"and the", dealtCards[1][0], ": Score =", player.playerTotal)##
+                        print(player.playerID + "'s cards are the", dealtCards[0][0], "and the", dealtCards[1][0],
+                              ": Score =", player.playerTotal)  ##
 
                     pass
 
                 else:
                     if printMode == True:
-                        print("The " + player.playerID + "'s shown card is the", dealtCards[0][0], ": Score =", self.cards.getCardName(player.playerCards)[0][1])##
+                        print("The " + player.playerID + "'s shown card is the", dealtCards[0][0], ": Score =",
+                              self.cards.getCardName(player.playerCards)[0][1])  ##
                     pass
 
+            if self.agent == "nn":
+                for player in self.playerList[1:]:  # NN
+                    if player.playerTotal == 21:
+                        if self.playerList[0].playerTotal < 21:
+                            win = True
+                            break
+                    while player.playerTotal < 21:
+                        if nn.structure[0] == 2:
 
-            for player in self.playerList[1:]:
-                if player.playerTotal==21:
-                    win = True
-                    break
-                while player.playerTotal <21:
-                    if nn.structure[0]==2:
+                            decision = nn.propagate([player.playerTotal, self.playerList[
+                                0].playerTotal])  # feeds the input through the network
+                        else:
+                            decision = nn.propagate([player.playerTotal, self.playerList[0].playerTotal,
+                                                     player.aces])  # feeds the input through the network
 
-                        decision = nn.propagate([player.playerTotal, self.playerList[0].playerTotal])  # feeds the input through the network
-                    else:
-                        decision = nn.propagate([player.playerTotal, self.playerList[0].playerTotal,player.aces])  # feeds the input through the network
+                            # decision = input(player.playerID + " your score is " + str(player.playerTotal) + ". Would you like to twist? Y = Yes, N= No ")
+                        if inverse == True:
+                            if decision >= 0.5:
+                                self.twist(player)
+                            else:
+                                break
+                        else:
+                            if decision <= 0.5:
+                                self.twist(player)
+                            else:
+                                break
 
-                #decision = input(player.playerID + " your score is " + str(player.playerTotal) + ". Would you like to twist? Y = Yes, N= No ")
-                    if decision >= 0.5:
+            elif self.agent == "dealer":
+                for player in self.playerList[1:]:
+                    while player.playerTotal < 21:
+                        if player.playerTotal > 16:
+                            break
+                        else:
+                            self.twist(player)
+
+            elif self.agent == "hoyle":
+                dealerCard = self.cards.getCardName(self.playerList[0].playerCards)  # HOYLES
+                for player in self.playerList[1:]:
+                    while player.playerTotal < 21:
+                        if player.aces > 0:
+                            if player.playerTotal > 17:
+                                break
+                        elif dealerCard[0][1] < 7:
+                            if player.playerTotal > 12:
+                                break
+                        else:
+                            if player.playerTotal > 16:
+                                break
                         self.twist(player)
-                    else:
-                        break
+
+
+            elif self.agent == "random":
+                for player in self.playerList[1:]:
+                    while player.playerTotal < 21:
+                        rand = random.uniform(0, 1)
+                        if rand >= 0.5:
+                            self.twist(player)
+                        else:
+                            break
 
             if win == False:
                 dealer = self.playerList[0]
-                dealerCards = self.cards.getCardName(dealer.playerCards)#cards object required?
+                dealerCards = self.cards.getCardName(dealer.playerCards)  # cards object required?
                 if printMode == True:
-                    print("The dealer reveals his second card, it is the", dealerCards[1][0])##
-                    print("The dealer has a score of", dealer.playerTotal, "\n")##
+                    print("The dealer reveals his second card, it is the", dealerCards[1][0])  ##
+                    print("The dealer has a score of", dealer.playerTotal, "\n")  ##
 
                 for player in self.playerList[1:]:
-                    if player.playerTotal <22:
-                        while(True):
-                            if dealer.playerTotal<17 and dealer.playerTotal<=player.playerTotal:
+                    if player.playerTotal < 22:
+                        while (True):
+                            if dealer.playerTotal < 17 and dealer.playerTotal <= player.playerTotal:
                                 self.twist(dealer)
                             else:
                                 break
 
-                best = ("The Dealer", 0) #Code under here could be more efficient
+                best = ("The Dealer", 0)  # Code under here could be more efficient
                 for player in self.playerList:
-                    if player.playerTotal > best[1] and player.playerTotal<22:
+                    if player.playerTotal > best[1] and player.playerTotal < 22:
                         best = (player.playerID, player.playerTotal)
 
                 if best[0] == self.playerList[0].playerID and best[1] == player.playerTotal:
                     if printMode == True:
-                        print("The game was a draw")##
-                    self.drawCount+=1
-                    if backprop == True:
-
-                        if self.playerList[1].playerTotal <21:
+                        print("The game was a draw")  ##
+                    self.drawCount += 1
+                    if self.agent == "nn":
+                        if self.playerList[1].playerTotal < 21:
                             nn.BP([0.5])
-                        elif self.playerList[1].playerTotal == 21 and len(self.playerList[1].playerCards)>2:
-                            nn.BP([1])
-
+                        elif self.playerList[1].playerTotal == 21 and len(self.playerList[1].playerCards) > 2:
+                            if inverse == True:
+                                nn.BP([1])
+                            else:
+                                nn.BP([0])
                 else:
                     if printMode == True:
-                        print(best[0], "wins with a score of", best[1])##
+                        print(best[0], "wins with a score of", best[1])  ##
                     if best[0] == self.playerList[1].playerID:
-                        self.winCount+=1
-                        if backprop == True:
+                        self.winCount += 1
+                        if self.agent == "nn":
                             if best[1] < 21:
-                                nn.BP([0])
-                            elif best[1]==21 and len(self.playerList[1].playerCards)>2:
-                                nn.BP([1])
+                                if inverse == True:
+                                    nn.BP([0])  # 0
+                                else:
+                                    nn.BP([1])
+
+                            elif best[1] == 21 and len(self.playerList[1].playerCards) > 2:
+                                if inverse == True:
+                                    nn.BP([1])
+                                else:
+                                    nn.BP([0])
                     else:
-                        self.loseCount+=1
-                        if backprop == True:
-                            if self.playerList[1].playerTotal <21:
-                                nn.BP([1])
-                            elif self.playerList[1].playerTotal >21:
-                                nn.BP([0])
+                        self.loseCount += 1
+                        if self.agent == "nn":
+                            if self.playerList[1].playerTotal < 21:
+                                if inverse == True:
+                                    nn.BP([1])
+                                else:
+                                    nn.BP([0])
+                            elif self.playerList[1].playerTotal > 21:
+                                if inverse == True:
+                                    nn.BP([0])
+                                else:
+                                    nn.BP([1])
             else:
                 if printMode == True:
                     print(player.playerID, "wins with a Blackjack!")  ##
@@ -470,34 +496,45 @@ class Player:
 
 if __name__ == '__main__':
     start_time = time.time()
-    hands = 15000
-    generations = 10
-    population =  5
-    currentWin = 0
-    currentWeights = []
+    hands = 20000
+    generations = 15
+    strategy = "nn"
 
-    for i in range(generations):
-        for n in range(population):
-            nn = NeuralNetwork()
-            if i>0 and n>0:
-                nn.weights = previousWeights
-            game = Game(1,6,hands)
+    if strategy =="nn":
 
-            if game.winCount > currentWin:
-                currentWin = game.winCount
-                currentWeights = nn.weights
+        population = 15
+        fullDetails = []
+        results = []
 
-        if currentWin > overallWin:
-            overallWin = currentWin
-            overallWeights = currentWeights
+        for i in range(generations):
+            currentWin = 0
+            currentWeights = []
+            for n in range(population):#population
+                nn = NeuralNetwork()
+                if i>0 and n>0:
+                    nn.weights = rando(overallWeights)
+                game = Game(1,6,hands, strategy)
+                if game.winCount > currentWin:
+                    currentWin = game.winCount
+                    currentWeights = nn.weights
+            previousWin = currentWin
+            previousWeights = currentWeights
+            if previousWin > overallWin:
+                overallWin = previousWin
+                overallWeights = previousWeights
+            print("best win rate =", (previousWin * 100) / hands, "%")
 
-        previousWin = currentWin
-        previousWeights = currentWeights
+        print("best result = ", (overallWin * 100) / hands, "\n best weights =", overallWeights)
+        #print("Full details", fullDetails)
 
-    print("best result = ", (overallWin*100)/hands, "\n best weights =", overallWeights)
-    #print("result array", resultarray)
+    else:
+        rates = []
+        for i in range(generations):
+            game = Game(1, 6, hands, strategy)
+            rates.append(((game.winCount * 100) / hands))
+        print(rates)
+
     print("--- %s seconds ---" % (time.time() - start_time))
-
-    # print("Win Count:", game.winCount, "percentage: ", str((game.winCount * 100 / (game.winCount + game.drawCount + game.loseCount))))
+    #print("Win Count:", game.winCount, "percentage: ", str((game.winCount * 100 / (game.winCount + game.drawCount + game.loseCount))))
     # print("Lose Count:", game.loseCount, "percentage: ", str((game.loseCount * 100 / (game.winCount + game.drawCount + game.loseCount))))
     # print("Draw Count:", game.drawCount, "percentage: ", str((game.drawCount * 100 / (game.winCount + game.drawCount + game.loseCount))), "%")
