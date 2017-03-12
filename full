@@ -24,6 +24,46 @@ previousWeights = []
 bestResultsArray = []
 bestWeightsArray = []
 
+
+thorpesSimple = ["H", "H", "D", "D", "H", "S","S","S",
+                 "S","S","H", "D","D", "D", "H", "S",
+                 "S","S","S","S","H", "D", "D", "D",
+                 "S", "S","S","S","S","S","H", "D","D",
+                 "D", "S", "S","S","S","S","S","H",
+                 "D", "D", "D", "S", "S","S","S","S","S",
+                 "H","H", "D", "D", "H", "H","H","H","H",
+                 "S","H", "H", "D", "D", "H", "H","H","H",
+                 "H","S","H", "H", "D", "D", "H", "H","H",
+                 "H","H","S","H", "H", "H", "D", "H", "H",
+                 "H","H","H","S","H", "H", "H", "H", "H",
+                 "H","H","H","H","S"]
+
+thorpesAce =    ["H", "H", "H", "H", "H", "S", "S", "S",
+                   "H", "H", "H", "H", "D", "Ds", "S", "S",
+                   "H", "H", "D", "D", "D", "Ds", "S", "S",
+                   "D", "D", "D", "D", "D", "Ds", "S", "S",
+                   "D", "D", "D", "D", "D", "Ds", "S", "S",
+                   "H", "H", "H", "H", "H", "S", "S", "S",
+                   "H", "H", "H", "H", "H", "S", "S", "S",
+                   "H", "H", "H", "H", "H", "H", "S", "S",
+                   "H", "H", "H", "H", "H", "H", "S", "S",
+                   "H", "H", "H", "H", "H", "H", "S", "S"]
+
+thorpesPair =["P", "P", "H", "D", "P", "P", "P", "P",
+              "S", "P", "P", "P", "H", "D", "P", "P",
+              "P", "P", "S", "P","P", "P", "H", "D",
+              "P", "P", "P", "P", "S", "P", "P", "P",
+              "P", "D", "P", "P", "P", "P", "S", "P",
+              "P", "P", "P", "D", "P", "P", "P","P",
+              "S", "P", "P", "P", "H", "D", "H","P",
+              "P", "S", "S", "P","H", "H", "H", "D",
+              "H", "H", "P", "P", "S", "P", "H","H",
+              "H", "D", "H", "H", "P", "P", "S","P",
+              "H", "H", "H", "H", "H", "H", "P","S",
+              "S", "P", "H", "H", "H", "H", "H","H",
+              "P", "S", "S", "P"]
+
+
 #enumerate isn't required, just loop for each item in the list
 
 def rando(weights):
@@ -278,6 +318,10 @@ class Game:
 
     counter = 0
 
+    money = 20000
+
+    blackjackCount = 0
+
     def __init__(self, numberOfPlayers,decks, hands, agent):
         self.agent = agent
         self.playerCount = numberOfPlayers
@@ -287,6 +331,15 @@ class Game:
 
 
     def setUp(self):
+        global split
+        global double
+        if self.agent =="nn"or self.agent =="thorpe":
+            split = True
+            double = True
+        else:
+            split = False
+            double = False
+
         self.playerList = []
         player = Player("Dealer")
         self.playerList.append(player)
@@ -308,7 +361,15 @@ class Game:
                     pCard = 11
                 else:
                     pCard = each[0][1]
-                decision = splitNN.propagate([pCard, dCard], 1)
+                if self.agent =="nn":
+                    decision = splitNN.propagate([pCard, dCard], 1)
+                elif self.agent == "thorpe":
+                     decision = self.thorpes([[pCard, 1, 0], dCard])
+                     if decision == "P":
+                        decision  = 1
+                     else:
+                         decision =0
+
                 if decision >= 0.5:
                     self.split(player, each)
                 else:
@@ -327,10 +388,36 @@ class Game:
         for hand in player.playerCards:
             if hand[1] < 22:
                 while (True):
-                    if dealer.playerCards[0][1] < 17 and dealer.playerCards[0][1] <= hand[1]:
+                    if dealer.playerCards[0][1] < 17: #and dealer.playerCards[0][1] <= hand[1]:
                         dealer.playerCards = [self.twist(dealer, dealer.playerCards[0])]
                     else:
                         break
+    def thorpes(self, inputs):
+        if inputs[0][1]==1:
+            splittable = "Splittable"
+        else:
+            splittable = "Unsplittable"
+        if inputs[0][2]==1:
+            ace = "soft"
+        else:
+            ace = "hard"
+
+        if inputs[0][1]== 1:
+            action = thorpesPair[(10 * (inputs[1] - 2)) + int((inputs[0][0]/2) - 2)]
+
+        elif inputs[0][2]>0:
+            action = thorpesAce[(8*(inputs[1]-2)) + (inputs[0][0]-13)]
+
+        else:
+            if inputs[0][0] > 17:
+                inputs[0][0] = 17
+            if inputs[0][0]<8:
+                inputs[0][0]=8
+            action = thorpesSimple[(10*(inputs[1]-2))+(inputs[0][0]-8)]
+
+        #print(inputs[0][0], inputs[1], splittable, ace, action)
+
+        return action
 
     def hand(self):
         #global gameCount
@@ -367,7 +454,16 @@ class Game:
                             pCard = 12
                         else:
                             pCard = 2 * cards[0][1]
-                        decision = splitNN.propagate([pCard, dCard], 1)
+
+                        if self.agent =="nn":
+                            decision = splitNN.propagate([pCard, dCard], 1)
+                        elif self.agent =="thorpe":
+                            decision = self.thorpes([[pCard, 1, 0], dCard])
+                            if decision == "P":
+                                decision = 1
+                            else:
+                                decision = 0
+
                         if decision >= 0.5:
                             if printMode:
                                 print(decision, "Player has decided to split")
@@ -414,8 +510,15 @@ class Game:
                         elif dCard == 14:
                             dCard = 11
 
-                        decision = doubleNN.propagate(
-                            [hand[4][1] + hand[5][1], dCard], 2)
+                        if self.agent =="nn":
+                            decision = doubleNN.propagate([hand[4][1] + hand[5][1], dCard], 2)
+                        elif self.agent =="thorpe":
+                            decision = self.thorpes([[hand[4][1] + hand[5][1], 0, hand[0]], dCard])
+                            if decision == "D" or decision == "Ds":
+                                decision = 1
+                            else:
+                                decision = 0
+
 
                         if decision >= 0.5:
                             hand[2] = 1
@@ -424,7 +527,7 @@ class Game:
 
             for player in self.playerList[1:]: #Need to make sure the logic for aces is correct here
                 for hand in player.playerCards:
-                    if self.agent == "nn":
+                    if self.agent == "nn" or self.agent == "thorpe":
                         while hand[1] < 21 and hand[2]!=2:
                             values = []
                             aceCount = hand[0]
@@ -451,7 +554,16 @@ class Game:
 
                             for i in values:
                                 total +=i
-                            decision = drawFoldNN.propagate([total, dCard], 0)  # feeds the input through the network
+
+                            if self.agent =="nn":
+                                decision = drawFoldNN.propagate([total, dCard], 0)  # feeds the input through the network
+                            elif self.agent =="thorpe":
+                                decision = self.thorpes([[total, 0, hand[0]], dCard])
+                                if decision == "H" or decision == "D":
+                                    decision = 0
+                                else:
+                                    decision =1
+
                             if inverse:
                                 if decision >= 0.5:
                                     hand = self.twist(player, hand)
@@ -467,7 +579,7 @@ class Game:
                                         print("Player has decided to stand")
                                     break
 
-                    elif self.agent == "dealer":
+                    elif self.agent == "dealer" or self.agent =="thorpe":
                         for player in self.playerList[1:]:
                             while hand[1] < 21:
                                 if hand[1] > 16:
@@ -476,7 +588,7 @@ class Game:
                                     hand = self.twist(player, hand)
 
                     elif self.agent == "hoyle":
-                        dealerCard = self.cards.getCardName(self.playerList[0].playerCards[4:])  # HOYLES
+                        dealerCard = self.cards.getCardName(self.playerList[0].playerCards[0][4:])  # HOYLES
                         for player in self.playerList[1:]:
                             while hand[1] < 21:
                                 if hand[0] > 0:
@@ -501,35 +613,35 @@ class Game:
                                     break
 
                 #################################################################################
-
                 self.dealerAction()
                 for hand in player.playerCards:
-                    best = (
-                    self.playerList[0].playerID, self.playerList[0].playerCards[0][1])  # Code under here could be more efficient
+                    both = False
+                    best = (self.playerList[0].playerID, self.playerList[0].playerCards[0][1])  # Code under here could be more efficient
 
+                    if (self.playerList[0].playerCards[0][1]>21 and hand[1]<22) or (hand[1] > self.playerList[0].playerCards[0][1] and hand[1] < 22):
+                        best = (player.playerID, hand[1])
 
                     if hand[1] == 21 and self.playerList[0].playerCards[0][1]==21:
+                        both = True
                         if len(hand[4:]) == 2:
                             if len(self.playerList[0].playerCards[0][4:])==2:
-                                pass
+                                best ="draw"
+                                #self.blackjackCount+=1
                             else:
-                                best = (player.playerID, hand[1])
+                                best = "blackjack"
+                                self.blackjackCount+=1
                         elif len(self.playerList[0].playerCards[0][4:])==2:
-                            best = (self.playerList[0].playerID, self.playerList[0].playerCards[0][1])
+                            best = "dealerWin"
+                    elif hand[1]==21 and len(hand[4:]) == 2:
+                        best = "blackjack"
+                        self.blackjackCount += 1
 
-                    if hand[1] > self.playerList[0].playerCards[0][1] and hand[1] < 22:
-                        best = (player.playerID, hand[1])
-
-                    if self.playerList[0].playerCards[0][1]>21 and hand[1]<22:
-                        best = (player.playerID, hand[1])
-
-
-                    if best[0] == self.playerList[0].playerID and best[1] == hand[1]:
+                    if  both==False and best[0] == self.playerList[0].playerID and best[1] == hand[1] or best == "draw":
                         if printMode:
-                            print("The game was a draw")  ##
+                            print("The game was a draw")
                         self.drawCount += 1
                         if self.agent == "nn":
-                            if not double and not split:
+                            if not double and not split and self.agent =="nn":
                                 if hand[1] < 21:
                                     drawFoldNN.BP([0.5])
                                 elif hand[1] == 21 and len(hand[4:]) > 2:
@@ -541,10 +653,10 @@ class Game:
                     else:
                         if printMode:
                             print(best[0], "wins with a score of", best[1])  ##
-                        if best[0] == self.playerList[1].playerID:
+                        if both==False and best[0] == self.playerList[1].playerID or best =="blackjack":
                             if splitTrain and hand[3]==1:
                                 splitNN.BP([1])
-                            elif not double and not split:
+                            elif not double and not split and self.agent =="nn":
                                 if best[1] < 21:
                                     drawFoldNN.BP([1])
                                 elif best[1] == 21 and len(hand[4:]) > 2:
@@ -554,20 +666,28 @@ class Game:
                                     doubleNN.BP([1])
                                 if hand[2]==2:
                                     self.winCount += 2
+                                    self.money+=2
                                 else:
                                     self.winCount += 1
+                                    self.money +=1
                             else:
                                 self.winCount +=1
+                                self.money+=1
+                            if best == "blackjack":
+                                self.money+=0.5
                         else:
                             if double and hand[2] > 0:
                                 if hand[2] == 2:
                                     self.loseCount += 2
+                                    self.money-=2
                                 else:
                                     self.loseCount += 1
+                                    self.money -=1
                             else:
                                 self.loseCount +=1
+                                self.money-=1
 
-                            if not double and not split:
+                            if not double and not split and self.agent =="nn":
                                 if hand[1] < 21:
                                     drawFoldNN.BP([0])
                                 elif hand[1] > 21:  #############else
@@ -594,10 +714,11 @@ class Game:
         if printMode:
             print("The", dealtCards[-1][0], "was dealt")
 
-        if not split and not double and player.playerID!="Dealer":
+        if not split and not double and player.playerID!="Dealer" and self.agent=="nn":
             if total <=21:
                 drawFoldNN.BP([0])
         return hand
+
 
 def GA(hands, population, generations, NN):
     global split
@@ -647,7 +768,7 @@ def GA(hands, population, generations, NN):
             game = Game(1, 6, hands, "nn")
             if game.winCount/(game.winCount+game.drawCount+game.loseCount) >= currentWin:
                 currentWin = game.winCount/(game.winCount+game.drawCount+game.loseCount)
-                currentWeights = NN.weights
+                currentWeights = drawFoldNN.weights
         previousWin = currentWin
         previousWeights = currentWeights
         if previousWin >= overallWin:
@@ -666,7 +787,7 @@ class Player:
 
 if __name__ == '__main__':
     start_time = time.time()
-    hands = 30000
+    hands = 200000
     population = 10
     generations = 10
 
@@ -683,22 +804,28 @@ if __name__ == '__main__':
 
 
     #print("best weights array", bestWeightsArray)
-    print("best results array", bestResultsArray)
+    #print("best results array", bestResultsArray)
     #print("drawFoldNN", drawFoldNN)
 
 
-    split = True
-    double = True
+    #split = True
+    #double = True
     #splitTrain = False
     #doubleTrain = False
 
 
-    game = Game(1, 6, 20000, "nn")
-    print("Run 1", (game.winCount * 100 / (game.winCount + game.drawCount + game.loseCount)))
 
-    drawFoldNN.weights = bestWeightsArray[0]
-    game = Game(1, 6, 20000, "nn")
-    print("Run 2 'best' weights", (game.winCount * 100 / (game.winCount + game.drawCount + game.loseCount)))
+    game = Game(1, 6, hands, "thorpe")
+    print("Dealer Win rate", ((game.winCount + (0.5* game.blackjackCount)) * 100 / (game.winCount + game.drawCount + game.loseCount)))
+    print("Dealer Lose rate", (game.loseCount * 100 / (game.winCount + game.drawCount + game.loseCount)))
+    print("Dealer Draw rate", (game.drawCount * 100 / (game.winCount + game.drawCount + game.loseCount)))
+    print("Money", game.money, "money/games", game.money/(game.winCount + game.drawCount + game.loseCount))
+
+    #print("blackjackCount:", game.blackjackCount, game.blackjackCount/hands)
+
+    #drawFoldNN.weights = bestWeightsArray[0]
+    #game = Game(1, 6, 200000, "hoyle")
+    #print("hoyle", (game.winCount * 100 / (game.winCount + game.drawCount + game.loseCount)))
 
 
 
