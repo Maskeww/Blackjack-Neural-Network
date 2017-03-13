@@ -1,19 +1,24 @@
-from memory_profiler import profile
-import numpy as np #remove draws from the win-rate metric
-import time #Is the feedback to the neural network appropriate?
+import numpy as np  # remove draws from the win-rate metric
+import time  # Is the feedback to the neural network appropriate?
 import itertools
 import random
-import sys
+import re
+import copy
+
 np.set_printoptions(suppress=True)
 
 from random import shuffle
-#gameCount = 0
+
+# gameCount = 0
 printMode = False
 inverse = False
+
 split = False
 double = False
+
 splitTrain = False
 doubleTrain = False
+drawFoldTrain = False
 
 overallWin = 0
 overallWeights = []
@@ -22,51 +27,52 @@ previousWin = 0
 previousWeights = []
 
 bestResultsArray = []
-bestWeightsArray = []
+
+bestDrawFold = []
+
+thorpesSimple = ["H", "H", "D", "D", "H", "S", "S", "S",
+                 "S", "S", "H", "D", "D", "D", "H", "S",
+                 "S", "S", "S", "S", "H", "D", "D", "D",
+                 "S", "S", "S", "S", "S", "S", "H", "D", "D",
+                 "D", "S", "S", "S", "S", "S", "S", "H",
+                 "D", "D", "D", "S", "S", "S", "S", "S", "S",
+                 "H", "H", "D", "D", "H", "H", "H", "H", "H",
+                 "S", "H", "H", "D", "D", "H", "H", "H", "H",
+                 "H", "S", "H", "H", "D", "D", "H", "H", "H",
+                 "H", "H", "S", "H", "H", "H", "D", "H", "H",
+                 "H", "H", "H", "S", "H", "H", "H", "H", "H",
+                 "H", "H", "H", "H", "S"]
+
+thorpesAce = ["H", "H", "H", "H", "H", "S", "S", "S",
+              "H", "H", "H", "H", "D", "Ds", "S", "S",
+              "H", "H", "D", "D", "D", "Ds", "S", "S",
+              "D", "D", "D", "D", "D", "Ds", "S", "S",
+              "D", "D", "D", "D", "D", "Ds", "S", "S",
+              "H", "H", "H", "H", "H", "S", "S", "S",
+              "H", "H", "H", "H", "H", "S", "S", "S",
+              "H", "H", "H", "H", "H", "H", "S", "S",
+              "H", "H", "H", "H", "H", "H", "S", "S",
+              "H", "H", "H", "H", "H", "H", "S", "S"]
+
+thorpesPair = ["P", "P", "H", "D", "P", "P", "P", "P",
+               "S", "P", "P", "P", "H", "D", "P", "P",
+               "P", "P", "S", "P", "P", "P", "H", "D",
+               "P", "P", "P", "P", "S", "P", "P", "P",
+               "P", "D", "P", "P", "P", "P", "S", "P",
+               "P", "P", "P", "D", "P", "P", "P", "P",
+               "S", "P", "P", "P", "H", "D", "H", "P",
+               "P", "S", "S", "P", "H", "H", "H", "D",
+               "H", "H", "P", "P", "S", "P", "H", "H",
+               "H", "D", "H", "H", "P", "P", "S", "P",
+               "H", "H", "H", "H", "H", "H", "P", "S",
+               "S", "P", "H", "H", "H", "H", "H", "H",
+               "P", "S", "S", "P"]
 
 
-thorpesSimple = ["H", "H", "D", "D", "H", "S","S","S",
-                 "S","S","H", "D","D", "D", "H", "S",
-                 "S","S","S","S","H", "D", "D", "D",
-                 "S", "S","S","S","S","S","H", "D","D",
-                 "D", "S", "S","S","S","S","S","H",
-                 "D", "D", "D", "S", "S","S","S","S","S",
-                 "H","H", "D", "D", "H", "H","H","H","H",
-                 "S","H", "H", "D", "D", "H", "H","H","H",
-                 "H","S","H", "H", "D", "D", "H", "H","H",
-                 "H","H","S","H", "H", "H", "D", "H", "H",
-                 "H","H","H","S","H", "H", "H", "H", "H",
-                 "H","H","H","H","S"]
+# enumerate isn't required, just loop for each item in the list
 
-thorpesAce =    ["H", "H", "H", "H", "H", "S", "S", "S",
-                   "H", "H", "H", "H", "D", "Ds", "S", "S",
-                   "H", "H", "D", "D", "D", "Ds", "S", "S",
-                   "D", "D", "D", "D", "D", "Ds", "S", "S",
-                   "D", "D", "D", "D", "D", "Ds", "S", "S",
-                   "H", "H", "H", "H", "H", "S", "S", "S",
-                   "H", "H", "H", "H", "H", "S", "S", "S",
-                   "H", "H", "H", "H", "H", "H", "S", "S",
-                   "H", "H", "H", "H", "H", "H", "S", "S",
-                   "H", "H", "H", "H", "H", "H", "S", "S"]
-
-thorpesPair =["P", "P", "H", "D", "P", "P", "P", "P",
-              "S", "P", "P", "P", "H", "D", "P", "P",
-              "P", "P", "S", "P","P", "P", "H", "D",
-              "P", "P", "P", "P", "S", "P", "P", "P",
-              "P", "D", "P", "P", "P", "P", "S", "P",
-              "P", "P", "P", "D", "P", "P", "P","P",
-              "S", "P", "P", "P", "H", "D", "H","P",
-              "P", "S", "S", "P","H", "H", "H", "D",
-              "H", "H", "P", "P", "S", "P", "H","H",
-              "H", "D", "H", "H", "P", "P", "S","P",
-              "H", "H", "H", "H", "H", "H", "P","S",
-              "S", "P", "H", "H", "H", "H", "H","H",
-              "P", "S", "S", "P"]
-
-
-#enumerate isn't required, just loop for each item in the list
-
-def rando(weights):
+def rando(bestWeights):
+    weights = copy.deepcopy(bestWeights)
     for current in range(len(weights) - 1, -1, -1):
         for inNode in range(len(weights[current])):
             if len(weights[current][inNode]) <= 1:
@@ -80,38 +86,40 @@ def rando(weights):
                 for outNode in range(len(weights[current][inNode])):
                     rand = random.uniform(0, 0.1)
                     pos = random.choice([True, False])
-                    if pos ==True:
-                        weights[current][inNode][outNode] = weights[current][inNode][outNode] + rand * weights[current][inNode][outNode]
+                    if pos == True:
+                        weights[current][inNode][outNode] = weights[current][inNode][outNode] + rand * weights[current][
+                            inNode][outNode]
                     else:
-                        weights[current][inNode][outNode] = weights[current][inNode][outNode] - rand * weights[current][inNode][outNode]
+                        weights[current][inNode][outNode] = weights[current][inNode][outNode] - rand * weights[current][
+                            inNode][outNode]
     return weights
 
 
+class NeuralNetwork:  # Need to sort out where the class parameters should go
 
-class NeuralNetwork: #Need to sort out where the class parameters should go
+    def __init__(self, structure, startWeights):  # rename hiddenNodeOutput etc #IS THE SELF. ACTUALLY REQUIRED?
 
-    def __init__(self, structure, startWeights): #rename hiddenNodeOutput etc #IS THE SELF. ACTUALLY REQUIRED?
-
-        #network structure
-        self.structure = structure #Each number represents the weights in each layer of the NN
+        # network structure
+        self.structure = structure  # Each number represents the weights in each layer of the NN
 
         self.weights = []
 
-        self.nodeOutputs = [] #Outputs from each node in each layer
+        self.nodeOutputs = []  # Outputs from each node in each layer
 
         self.nodeInputs = []
 
         self.deltas = []
 
         if startWeights == 0:
-            for i in range(len(self.structure)-1):
-                self.weights.append(np.random.rand(self.structure[i], self.structure[i+1])) #Create and initialise weights
+            for i in range(len(self.structure) - 1):
+                self.weights.append(
+                    np.random.rand(self.structure[i], self.structure[i + 1]))  # Create and initialise weights
         else:
             self.weights = startWeights
 
     def sigmoid(self, z):
 
-        return 1/(1+np.exp(-z))
+        return 1 / (1 + np.exp(-z))
 
     def propagate(self, testSet, nnType):
 
@@ -120,20 +128,20 @@ class NeuralNetwork: #Need to sort out where the class parameters should go
         self.nodeOutputs = []
 
         inputs = []
-        if nnType ==0:
-            for i in range(4,21):
+        if nnType == 0:
+            for i in range(4, 21):
                 if i == testSet[0]:
                     inputs.append(1)
                 else:
                     inputs.append(0)
 
-            for i in range(2,12):
+            for i in range(2, 12):
                 if i == testSet[1]:
                     inputs.append(1)
                 else:
                     inputs.append(0)
-        elif nnType==1:
-            for i in range(4,21,2):
+        elif nnType == 1:
+            for i in range(4, 19, 2):
                 if i == testSet[0]:
                     inputs.append(1)
                 else:
@@ -157,7 +165,6 @@ class NeuralNetwork: #Need to sort out where the class parameters should go
                 else:
                     inputs.append(0)
 
-
         for i in range(len(self.structure)):
 
             if i == 0:
@@ -166,18 +173,17 @@ class NeuralNetwork: #Need to sort out where the class parameters should go
 
                 self.nodeOutputs.append(self.nodeInputs[-1])
 
-            elif i < len(self.structure)-1:
-                self.nodeInputs.append(np.dot(self.nodeOutputs[-1], self.weights[i-1]))
+            elif i < len(self.structure) - 1:
+                self.nodeInputs.append(np.dot(self.nodeOutputs[-1], self.weights[i - 1]))
                 self.nodeOutputs.append(self.sigmoid(self.nodeInputs[-1]))
             else:
-                self.nodeInputs.append(np.dot(self.nodeOutputs[-1], self.weights[i-1]))
+                self.nodeInputs.append(np.dot(self.nodeOutputs[-1], self.weights[i - 1]))
 
                 self.nodeOutputs.append(self.sigmoid(self.nodeInputs[-1]))
 
-        return(self.nodeOutputs[-1])
+        return (self.nodeOutputs[-1])
 
     def BP(self, expected):
-
         self.deltas = []
 
         lastLayer = []
@@ -190,7 +196,8 @@ class NeuralNetwork: #Need to sort out where the class parameters should go
 
                     if len(self.weights[-1][inNode]) <= 1:
 
-                        lastLayer.append([(self.nodeOutputs[-1][0] - expected[0]) * (self.nodeOutputs[-1][0] * (1 - self.nodeOutputs[-1][0])) * self.nodeOutputs[-2][
+                        lastLayer.append([(self.nodeOutputs[-1][0] - expected[0]) * (
+                            self.nodeOutputs[-1][0] * (1 - self.nodeOutputs[-1][0])) * self.nodeOutputs[-2][
                                               inNode]])
 
                     else:
@@ -244,10 +251,10 @@ class NeuralNetwork: #Need to sort out where the class parameters should go
 
                 for weight in range(len(self.weights[layer][node])):
                     self.weights[layer][node][weight] = self.weights[layer][node][weight] - (
-                    self.deltas[-(layer + 1)][node][weight])
+                        self.deltas[-(layer + 1)][node][weight])
+
 
 class Cards:
-
     suits = ['Spades', 'Hearts', 'Diamonds', 'Clubs']
 
     values = range(2, 15)
@@ -260,21 +267,17 @@ class Cards:
 
         self.deckSize = decks
 
-
     def newShoe(self):
         self.shoe = []
 
         for i in range(self.deckSize):
 
-            for Card in itertools.product(self.suits,self.values):
-
-                self.shoe.append(Card) #Cartesian Product to Create Deck
+            for Card in itertools.product(self.suits, self.values):
+                self.shoe.append(Card)  # Cartesian Product to Create Deck
 
         shuffle(self.shoe)
 
-
-
-    def getCardName(self, cards): # takes in a list, do we need self here?
+    def getCardName(self, cards):  # takes in a list, do we need self here?
         output = []
         for card in cards:
             if card[1] <= 10:
@@ -296,7 +299,7 @@ class Cards:
                 output.append(('Ace of' + ' ' + card[0], 11))
         return output
 
-    def deal(self, amount): #returns a list of cards
+    def deal(self, amount):  # returns a list of cards
         dealCards = []
         if len(self.shoe) < 0.25 * (self.deckSize * 52):
             del self.shoe[:]
@@ -306,8 +309,8 @@ class Cards:
             del self.shoe[0]
         return dealCards
 
-class Game:
 
+class Game:
     winCount = 0
 
     drawCount = 0
@@ -322,58 +325,60 @@ class Game:
 
     blackjackCount = 0
 
-    def __init__(self, numberOfPlayers,decks, hands, agent):
+    def __init__(self, numberOfPlayers, decks, hands, agent):
         self.agent = agent
         self.playerCount = numberOfPlayers
         self.cards = Cards(decks)
         self.handCount = hands
         self.setUp()
 
-
     def setUp(self):
         global split
         global double
-        if self.agent =="nn"or self.agent =="thorpe":
+        if self.agent == "thorpe":
             split = True
             double = True
-        else:
-            split = False
-            double = False
 
         self.playerList = []
         player = Player("Dealer")
         self.playerList.append(player)
         for i in range(self.playerCount):
-            player = Player("Player "+ str(i))
+            player = Player("Player " + str(i))
             self.playerList.append(player)
         self.hand()
 
     def split(self, player, pair):
         hands = [[pair[0], self.cards.deal(1)[0]], [pair[1], self.cards.deal(1)[0]]]
         for each in hands:
-            if each[0][1]==each[1][1] and each[0][1] not in [4,5,10,11,12,13]:
+            if each[0][1] == each[1][1] and each[0][1] not in [4, 5, 10, 11, 12, 13] or self.agent =="thorpe" and each[0][1] == each[1][1]:
                 dCard = self.playerList[0].playerCards[0][4][1]
                 if 9 < dCard and dCard < 14:
                     dCard = 10
                 elif dCard == 14:
                     dCard = 11
-                if each[0][1] == 14:
-                    pCard = 11
+                playerCards = self.cards.getCardName(each)
+                if playerCards[0][1] == 11:
+                    pCard = 12
                 else:
-                    pCard = each[0][1]
-                if self.agent =="nn":
+                    pCard = 2 * playerCards[0][1]
+
+                if self.agent == "nn":
                     decision = splitNN.propagate([pCard, dCard], 1)
                 elif self.agent == "thorpe":
-                     decision = self.thorpes([[pCard, 1, 0], dCard])
-                     if decision == "P":
-                        decision  = 1
-                     else:
-                         decision =0
+                    decision = self.thorpes([[pCard, 1, 0], dCard])
+                    if decision == "P":
+                        decision = 1
+                    else:
+                        decision = 0
 
                 if decision >= 0.5:
                     self.split(player, each)
+                    if printMode:
+                        print(decision, "Player has decided to split")
                 else:
                     player.playerCards.append(each)
+                    if printMode:
+                        print(decision, "Player has decided not to split")
             else:
                 player.playerCards.append(each)
 
@@ -388,52 +393,44 @@ class Game:
         for hand in player.playerCards:
             if hand[1] < 22:
                 while (True):
-                    if dealer.playerCards[0][1] < 17: #and dealer.playerCards[0][1] <= hand[1]:
+                    if dealer.playerCards[0][1] < 17:  # and dealer.playerCards[0][1] <= hand[1]:
                         dealer.playerCards = [self.twist(dealer, dealer.playerCards[0])]
                     else:
                         break
+
     def thorpes(self, inputs):
-        if inputs[0][1]==1:
-            splittable = "Splittable"
-        else:
-            splittable = "Unsplittable"
-        if inputs[0][2]==1:
-            ace = "soft"
-        else:
-            ace = "hard"
+        if inputs[0][1] == 1:
+            action = thorpesPair[(10 * (inputs[1] - 2)) + int((inputs[0][0] / 2) - 2)]
 
-        if inputs[0][1]== 1:
-            action = thorpesPair[(10 * (inputs[1] - 2)) + int((inputs[0][0]/2) - 2)]
-
-        elif inputs[0][2]>0:
-            action = thorpesAce[(8*(inputs[1]-2)) + (inputs[0][0]-13)]
+        elif inputs[0][2] > 0:
+            action = thorpesAce[(8 * (inputs[1] - 2)) + (inputs[0][0] - 13)]
 
         else:
             if inputs[0][0] > 17:
                 inputs[0][0] = 17
-            if inputs[0][0]<8:
-                inputs[0][0]=8
-            action = thorpesSimple[(10*(inputs[1]-2))+(inputs[0][0]-8)]
+            if inputs[0][0] < 8:
+                inputs[0][0] = 8
+            action = thorpesSimple[(10 * (inputs[1] - 2)) + (inputs[0][0] - 8)]
 
-        #print(inputs[0][0], inputs[1], splittable, ace, action)
+        # print(inputs[0][0], inputs[1], splittable, ace, action)
 
         return action
 
     def hand(self):
-        #global gameCount
+        # global gameCount
         for i in range(self.handCount):
             for player in self.playerList:
                 player.playerCards = []
 
                 cards = self.cards.deal(2)  # deal cards to players -> [("diamonds", 10), ("diamonds", 9)]
-                if player.playerID!="Dealer" and splitTrain:
+                if player.playerID != "Dealer" and splitTrain:
                     cards = [cards[0], cards[0]]
 
                 dealtCards = self.cards.getCardName(cards)
 
                 player.playerCards.append(cards)
                 if player.playerID != "Dealer":
-                    #gameCount+=1
+                    # gameCount+=1
                     if printMode:
                         print(player.playerID + "'s cards are the", dealtCards[0][0], "and the", dealtCards[1][0],
                               ": Score =", dealtCards[0][1] + dealtCards[1][1])  ##
@@ -444,36 +441,37 @@ class Game:
                               self.cards.getCardName(player.playerCards[0])[0][1])  ##
 
                 if split and player.playerID != "Dealer":
-                    if cards[0][1] == cards[1][1] and cards[0][1] not in [4, 5, 10, 11, 12, 13]:
+                    if cards[0][1] == cards[1][1] and cards[0][1] not in [4, 5, 10, 11, 12, 13] or self.agent =="thorpe" and cards[0][1] == cards[1][1]:
                         dCard = self.playerList[0].playerCards[0][4][1]
                         if 9 < dCard and dCard < 14:
                             dCard = 10
                         elif dCard == 14:
                             dCard = 11
-                        if cards[0][1] == 14:
+
+                        playerCards = self.cards.getCardName(cards)
+                        if playerCards[0][1] == 11:
                             pCard = 12
                         else:
-                            pCard = 2 * cards[0][1]
+                            pCard = 2*playerCards[0][1]
 
-                        if self.agent =="nn":
-                            decision = splitNN.propagate([pCard, dCard], 1)
-                        elif self.agent =="thorpe":
-                            decision = self.thorpes([[pCard, 1, 0], dCard])
-                            if decision == "P":
-                                decision = 1
+                        if self.agent == "nn" or self.agent == "thorpe":
+                            if self.agent == "nn":
+                                decision = splitNN.propagate([pCard, dCard], 1)
+                            elif self.agent == "thorpe":
+                                decision = self.thorpes([[pCard, 1, 0], dCard])
+                                if decision == "P":
+                                    decision = 1
+                                else:
+                                    decision = 0
+
+                            if decision >= 0.5:
+                                if printMode:
+                                    print(decision, "Player has decided to split")
+                                self.split(player, cards)
+                                del player.playerCards[0]
                             else:
-                                decision = 0
-
-                        if decision >= 0.5:
-                            if printMode:
-                                print(decision, "Player has decided to split")
-                            self.split(player, cards)
-                            del player.playerCards[0]
-                        else:
-                            if printMode:
-                                print(decision, "Player has decided not to split")
-
-
+                                if printMode:
+                                    print(decision, "Player has decided not to split")
 
                 for hand in player.playerCards:
                     aces = 0
@@ -484,13 +482,12 @@ class Game:
                     if hand[1][1] == 14:
                         aces += 1
 
-                    hand.insert(0, aces) #insert into position 0 - ace count
-                    hand.insert(1, 0) #insert into position 1 - 0(current score count)
-                    hand.insert(2,0) #insert into position 2 - 0 (No double down at this point)
+                    hand.insert(0, aces)  # insert into position 0 - ace count
+                    hand.insert(1, 0)  # insert into position 1 - 0(current score count)
+                    hand.insert(2, 0)  # insert into position 2 - 0 (No double down at this point)
                     hand.insert(3, 0)
-                    if len(hand[4:]) > 1 or hand[4][1] == hand[5][1]: #Was splitting possible?
+                    if len(hand[4:]) > 1 or hand[4][1] == hand[5][1]:  # Was splitting possible?
                         hand[3] == 1
-
 
                     dealtCards = self.cards.getCardName(
                         hand[4:])  # could save this as a separate variable in player class ###########
@@ -502,42 +499,51 @@ class Game:
                         hand[0] -= 1
 
                     if double == True and player.playerID != "Dealer" and 8 < hand[1] < 12:
-                        # print("Double hand?", hand)
-
                         dCard = self.playerList[0].playerCards[0][4][1]
                         if 9 < dCard and dCard < 14:
                             dCard = 10
                         elif dCard == 14:
                             dCard = 11
 
-                        if self.agent =="nn":
-                            decision = doubleNN.propagate([hand[4][1] + hand[5][1], dCard], 2)
-                        elif self.agent =="thorpe":
-                            decision = self.thorpes([[hand[4][1] + hand[5][1], 0, hand[0]], dCard])
+                        playerCards = self.cards.getCardName(hand[4:])
+
+                        if playerCards[0][1] == 11 and playerCards[1][1]==11:
+                            playerScore = 12
+                        else:
+                            playerScore = playerCards[0][1]+ playerCards[1][1]
+
+                        if self.agent == "nn":
+                            decision = doubleNN.propagate([playerScore, dCard], 2)
+                        elif self.agent == "thorpe":
+                            decision = self.thorpes([[playerScore, 0, hand[0]], dCard])
                             if decision == "D" or decision == "Ds":
                                 decision = 1
                             else:
                                 decision = 0
 
-
                         if decision >= 0.5:
+                            if printMode:
+                                print("player has decided to double down")
                             hand[2] = 1
                         else:
+                            if printMode:
+                                print("player has decided not to double down")
                             hand[2] = 3  # to signify that the option was there to double up
 
-            for player in self.playerList[1:]: #Need to make sure the logic for aces is correct here
+
+            for player in self.playerList[1:]:  # Need to make sure the logic for aces is correct here
                 for hand in player.playerCards:
                     if self.agent == "nn" or self.agent == "thorpe":
-                        while hand[1] < 21 and hand[2]!=2:
+                        while hand[1] < 21 and hand[2] != 2:
                             values = []
                             aceCount = hand[0]
                             for card in hand[4:]:
-                                if 9 < card[1] and card[1]<14: #9 < card[1] <14?
+                                if 9 < card[1] and card[1] < 14:  # 9 < card[1] <14?
                                     values.append(10)
-                                elif card[1]==14:
-                                    if aceCount >0:
+                                elif card[1] == 14:
+                                    if aceCount > 0:
                                         values.append(11)
-                                        aceCount -=1
+                                        aceCount -= 1
                                     else:
                                         values.append(1)
                                 else:
@@ -551,18 +557,17 @@ class Game:
 
                             total = 0
 
-
                             for i in values:
-                                total +=i
+                                total += i
 
-                            if self.agent =="nn":
-                                decision = drawFoldNN.propagate([total, dCard], 0)  # feeds the input through the network
-                            elif self.agent =="thorpe":
+                            if self.agent == "nn":
+                                decision = drawFoldNN.propagate([total, dCard],0)  # feeds the input through the network
+                            elif self.agent == "thorpe":
                                 decision = self.thorpes([[total, 0, hand[0]], dCard])
                                 if decision == "H" or decision == "D":
                                     decision = 0
                                 else:
-                                    decision =1
+                                    decision = 1
 
                             if inverse:
                                 if decision >= 0.5:
@@ -572,14 +577,14 @@ class Game:
                             else:
                                 if decision <= 0.5:
                                     hand = self.twist(player, hand)
-                                    if hand[2]==1:
+                                    if hand[2] == 1:
                                         hand[2] = 2
                                 else:
                                     if printMode:
                                         print("Player has decided to stand")
                                     break
 
-                    elif self.agent == "dealer" or self.agent =="thorpe":
+                    elif self.agent == "dealer":
                         for player in self.playerList[1:]:
                             while hand[1] < 21:
                                 if hand[1] > 16:
@@ -615,48 +620,52 @@ class Game:
                 #################################################################################
                 self.dealerAction()
                 for hand in player.playerCards:
-                    both = False
-                    best = (self.playerList[0].playerID, self.playerList[0].playerCards[0][1])  # Code under here could be more efficient
 
-                    if (self.playerList[0].playerCards[0][1]>21 and hand[1]<22) or (hand[1] > self.playerList[0].playerCards[0][1] and hand[1] < 22):
+                    best = (self.playerList[0].playerID,
+                            self.playerList[0].playerCards[0][1])  # Code under here could be more efficient
+
+                    if (self.playerList[0].playerCards[0][1] > 21 and hand[1] < 22) or (
+                                    hand[1] > self.playerList[0].playerCards[0][1] and hand[1] < 22):
                         best = (player.playerID, hand[1])
 
-                    if hand[1] == 21 and self.playerList[0].playerCards[0][1]==21:
-                        both = True
+                    if hand[1] == 21 and self.playerList[0].playerCards[0][1] == 21:
                         if len(hand[4:]) == 2:
-                            if len(self.playerList[0].playerCards[0][4:])==2:
-                                best ="draw"
-                                #self.blackjackCount+=1
+                            if len(self.playerList[0].playerCards[0][4:]) == 2:
+                                best = ["draw",hand[1]]
                             else:
-                                best = "blackjack"
-                                self.blackjackCount+=1
-                        elif len(self.playerList[0].playerCards[0][4:])==2:
-                            best = "dealerWin"
-                    elif hand[1]==21 and len(hand[4:]) == 2:
-                        best = "blackjack"
+                                best = ["blackjack", hand[1]]
+                                self.blackjackCount += 1
+                        elif len(self.playerList[0].playerCards[0][4:]) == 2:
+                            best = ["dealerWin", hand[1]]
+                    elif hand[1] == 21 and len(hand[4:]) == 2:
+                        best = ["blackjack", hand[1]]
                         self.blackjackCount += 1
 
-                    if  both==False and best[0] == self.playerList[0].playerID and best[1] == hand[1] or best == "draw":
+                    if best[0] == self.playerList[0].playerID and best[1] == hand[
+                        1] or best[0] == "draw":
                         if printMode:
                             print("The game was a draw")
                         self.drawCount += 1
                         if self.agent == "nn":
-                            if not double and not split and self.agent =="nn":
+                            if not double and not split and self.agent == "nn" and drawFoldTrain:
                                 if hand[1] < 21:
                                     drawFoldNN.BP([0.5])
                                 elif hand[1] == 21 and len(hand[4:]) > 2:
                                     drawFoldNN.BP([0])
-                            elif doubleTrain and hand[2]>0:
+                            elif doubleTrain and hand[2] > 0:
                                 doubleNN.BP([0.5])
                             elif splitTrain and hand[3] == 1:
                                 splitNN.BP([0.5])
                     else:
-                        if printMode:
-                            print(best[0], "wins with a score of", best[1])  ##
-                        if both==False and best[0] == self.playerList[1].playerID or best =="blackjack":
-                            if splitTrain and hand[3]==1:
+                        if best[0] == self.playerList[1].playerID or best[0] == "blackjack":
+                            if printMode:
+                                print(player.playerID, "wins with a score of", best[1])
+                            if best =="blackJack":
+                                self.money += 0.5
+                                best[1]=21
+                            if splitTrain and hand[3] == 1:
                                 splitNN.BP([1])
-                            elif not double and not split and self.agent =="nn":
+                            elif not double and not split and self.agent == "nn" and drawFoldTrain:
                                 if best[1] < 21:
                                     drawFoldNN.BP([1])
                                 elif best[1] == 21 and len(hand[4:]) > 2:
@@ -664,63 +673,65 @@ class Game:
                             if double and hand[2] > 0:
                                 if doubleTrain:
                                     doubleNN.BP([1])
-                                if hand[2]==2:
+                                if hand[2] == 2:
                                     self.winCount += 2
-                                    self.money+=2
+                                    self.money += 2
                                 else:
                                     self.winCount += 1
-                                    self.money +=1
+                                    self.money += 1
                             else:
-                                self.winCount +=1
-                                self.money+=1
-                            if best == "blackjack":
-                                self.money+=0.5
+                                self.winCount += 1
+                                self.money += 1
                         else:
+                            if printMode:
+                                print(self.playerList[0].playerID, "wins with a score of", best[1])
                             if double and hand[2] > 0:
                                 if hand[2] == 2:
                                     self.loseCount += 2
-                                    self.money-=2
+                                    self.money -= 2
                                 else:
                                     self.loseCount += 1
-                                    self.money -=1
+                                    self.money -= 1
                             else:
-                                self.loseCount +=1
-                                self.money-=1
+                                self.loseCount += 1
+                                self.money -= 1
 
-                            if not double and not split and self.agent =="nn":
+                            if not double and not split and self.agent == "nn" and drawFoldTrain:
                                 if hand[1] < 21:
                                     drawFoldNN.BP([0])
                                 elif hand[1] > 21:  #############else
                                     drawFoldNN.BP([1])
                             elif splitTrain and hand[3] == 1:
                                 splitNN.BP([0])
-                            elif doubleTrain and hand[2]>0:
+                            elif doubleTrain and hand[2] > 0:
                                 doubleNN.BP([0])
 
     def twist(self, player, hand):
         if printMode:
-            print(player.playerID, "has decided to twist... \n")##
+            print(player.playerID, "has decided to twist... \n")  ##
         card = self.cards.deal(1)[0]
         if card[1] == 14:
-            hand[0]+=1
+            hand[0] += 1
         hand.append(card)
         dealtCards = self.cards.getCardName(hand[4:])
         total = hand[1] + dealtCards[-1][1]
         if total > 21 and hand[0] > 0:
-            total-=10
-            hand[0]-=1
+            total -= 10
+            hand[0] -= 1
         hand[1] = total
 
         if printMode:
             print("The", dealtCards[-1][0], "was dealt")
 
-        if not split and not double and player.playerID!="Dealer" and self.agent=="nn":
-            if total <=21:
+        if not split and not double and player.playerID != "Dealer" and self.agent == "nn" and drawFoldTrain:
+            if total <= 21:
                 drawFoldNN.BP([0])
         return hand
 
 
 def GA(hands, population, generations, NN):
+    global drawFoldNN
+    global drawFoldTrain
     global split
     global splitTrain
     global double
@@ -731,114 +742,109 @@ def GA(hands, population, generations, NN):
     global overallWeights
 
     if NN == drawFoldNN:
+        drawFoldTrain = True
         split = False
         splitTrain = False
         double = False
         doubleTrain = False
     elif NN == splitNN:
+        drawFoldTrain = False
         split = True
         splitTrain = True
         double = False
         doubleTrain = False
     elif NN == doubleNN:
+        drawFoldTrain = False
         double = True
         doubleTrain = True
         split = False
         splitTrain = False
 
-    overallWin = 0
-    overallWeights = []
-
-    previousWin = 0
-    previousWeights = []
-    for i in range(generations): #change back to NN
+    for i in range(generations):  # change back to NN
         currentWin = 0
         currentWeights = []
+        print("best win-rate", overallWin, noBrac(str(overallWeights)))
+
         for n in range(population):  # population
             if i > 0 and n > 0:
                 NN.weights = rando(overallWeights)
-            else:
-                if NN == drawFoldNN:
-                    NN = NeuralNetwork((27, 2, 1), 0)
-                elif NN == splitNN:
-                    NN = NeuralNetwork((19, 5, 1), 0)
-                elif NN == doubleNN:
-                    NN = NeuralNetwork((13, 2, 1), 0)
-
             game = Game(1, 6, hands, "nn")
-            if game.winCount/(game.winCount+game.drawCount+game.loseCount) >= currentWin:
-                currentWin = game.winCount/(game.winCount+game.drawCount+game.loseCount)
-                currentWeights = drawFoldNN.weights
+            if game.winCount / (game.winCount + game.drawCount + game.loseCount) >= currentWin:
+                currentWin = game.winCount / (game.winCount + game.drawCount + game.loseCount)
+                currentWeights = copy.deepcopy(NN.weights)
         previousWin = currentWin
-        previousWeights = currentWeights
+        previousWeights = copy.deepcopy(currentWeights)
         if previousWin >= overallWin:
             overallWin = previousWin
-            overallWeights = previousWeights
+            overallWeights = copy.deepcopy(previousWeights)
     return overallWeights, overallWin
 
 
 class Player:
-
     def __init__(self, ID):
-
         self.playerID = (ID)
 
         self.playerCards = []
 
+def noBrac(arra):
+    output = re.sub('[a-z()]', '', arra)
+    return output
+
+def compare(agents, hands):
+    winRates = []
+    drawRates = []
+    loseRates = []
+    for i in agents:
+        game = Game(1, 6, hands, i)
+        winRates.append( game.winCount * 100 / (game.winCount + game.drawCount + game.loseCount))
+        loseRates.append(game.loseCount * 100 / (game.winCount + game.drawCount + game.loseCount))
+        drawRates.append(game.drawCount * 100 / (game.winCount + game.drawCount + game.loseCount))
+    for i in range(len(agents)):
+        print(agents[i] + " Results")
+        print("Win rate = " + str(winRates[i]))
+        print("Draw rate = " + str(drawRates[i]))
+        print("Lose rate = " + str(loseRates[i]), "\n\n")
+
 if __name__ == '__main__':
     start_time = time.time()
-    hands = 200000
-    population = 10
-    generations = 10
+    hands = 50000
+    population = 50
+    generations = 50
 
     drawFoldNN = NeuralNetwork((27, 2, 1), 0)
-    splitNN = NeuralNetwork((19, 5, 1), 0)
+    splitNN = NeuralNetwork((18, 5, 1), 0)
     doubleNN = NeuralNetwork((13, 2, 1), 0)
 
+    #compare(["hoyle", "dealer", "random"], hands)
 
-    for nn in [drawFoldNN]: #,doubleNN, splitNN
+
+
+    '''for nn in [drawFoldNN, doubleNN, splitNN]:  # ,doubleNN, splitNN
         print("run")
         weights, winRate = GA(hands, population, generations, nn)
         bestResultsArray.append(winRate)
-        bestWeightsArray.append(weights)
 
+    print("best results", bestResultsArray)
+    print("drawFold best", bestDrawFold)
 
-    #print("best weights array", bestWeightsArray)
-    #print("best results array", bestResultsArray)
-    #print("drawFoldNN", drawFoldNN)
+    split = False
+    double = False
+    splitTrain = False
+    doubleTrain = False
+    drawFoldTrain = False'''
 
+    game = Game(1, 6, 2000000, "thorpe")
+    print("Player Win rate",(game.winCount * 100 / (game.winCount + game.drawCount + game.loseCount)))
+    print("Player Lose rate", (game.loseCount * 100 / (game.winCount + game.drawCount + game.loseCount)))
+    print("Player Draw rate", (game.drawCount * 100 / (game.winCount + game.drawCount + game.loseCount)))
 
-    #split = True
-    #double = True
-    #splitTrain = False
-    #doubleTrain = False
+    print("Player win rate plus blackjacks",(((game.winCount) + (game.blackjackCount * 0.5)) * 100 / (game.winCount + game.drawCount + game.loseCount)))
 
-
-
-    game = Game(1, 6, hands, "thorpe")
-    print("Dealer Win rate", ((game.winCount + (0.5* game.blackjackCount)) * 100 / (game.winCount + game.drawCount + game.loseCount)))
-    print("Dealer Lose rate", (game.loseCount * 100 / (game.winCount + game.drawCount + game.loseCount)))
-    print("Dealer Draw rate", (game.drawCount * 100 / (game.winCount + game.drawCount + game.loseCount)))
-    print("Money", game.money, "money/games", game.money/(game.winCount + game.drawCount + game.loseCount))
-
-    #print("blackjackCount:", game.blackjackCount, game.blackjackCount/hands)
-
-    #drawFoldNN.weights = bestWeightsArray[0]
-    #game = Game(1, 6, 200000, "hoyle")
-    #print("hoyle", (game.winCount * 100 / (game.winCount + game.drawCount + game.loseCount)))
+    print("drawFold", noBrac(str(drawFoldNN.weights)),"\n")
+    print("split", noBrac(str(splitNN.weights)),"\n")
+    print("double", noBrac(str(doubleNN.weights)),"\n")
 
 
 
-    #print("split", splitNN.weights)
-    #print("double", doubleNN.weights)
-    '''counter = 0
-    for i in bestWeightsArray:
-        if counter==0:
-            print("drawFoldNN Weights", i)
-        elif counter ==1:
-            print("splitNN Weights", i)
-        else:
-            print("doubleNN Weights", i)
-        counter +=1'''
+    print("p=40, g=40 h=30k")
 
-    #print("--- %s seconds ---" % (time.time() - start_time))
