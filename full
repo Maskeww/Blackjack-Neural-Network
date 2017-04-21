@@ -1,6 +1,5 @@
 import numpy as np
-import time  # Is the feedback to the neural network appropriate?
-from time import gmtime, strftime
+import time
 import random
 import re
 import copy
@@ -77,7 +76,6 @@ def rando(bestWeights): #create weights based on best agents of previous populat
                     for outNode in range(len(weights[current][inNode])):
                         rand = random.uniform(0, 1)
                         weights[current][inNode][outNode] = rand
-
     return weights
 
 class NeuralNetwork:  # Need to sort out where the class parameters should go
@@ -103,20 +101,20 @@ class NeuralNetwork:  # Need to sort out where the class parameters should go
         self.nodeInputs = []
         self.nodeOutputs = []
         inputs = []
-        if nnType == 0:
+        if nnType == 0 or nnType == 1:
             for i in range(4, 21):
                 if i == testSet[0]:
                     inputs.append(1)
                 else:
                     inputs.append(0)
-
             for i in range(2, 12):
                 if i == testSet[1]:
                     inputs.append(1)
                 else:
                     inputs.append(0)
             inputs.append(testSet[2])
-        elif nnType == 1:
+
+        elif nnType == 2:
             for i in range(2, 12):
                 if i == testSet[0]:
                     inputs.append(1)
@@ -124,12 +122,6 @@ class NeuralNetwork:  # Need to sort out where the class parameters should go
                     inputs.append(0)
             for i in range(2, 12):
                 if i == testSet[1]:
-                    inputs.append(1)
-                else:
-                    inputs.append(0)
-        else:
-            for i in range(2, 12):
-                if i == testSet[0]:
                     inputs.append(1)
                 else:
                     inputs.append(0)
@@ -148,36 +140,107 @@ class NeuralNetwork:  # Need to sort out where the class parameters should go
 
     def BP(self, expected):
         self.deltas = []
+
         lastLayer = []
+
         for current in range(len(self.weights) - 1, -1, -1):
+
             if current == len(self.weights) - 1:
+
                 for inNode in range(len(self.weights[-1])):
+
                     if len(self.weights[-1][inNode]) <= 1:
+
                         lastLayer.append([(self.nodeOutputs[-1][0] - expected[0]) * (
+
                             self.nodeOutputs[-1][0] * (1 - self.nodeOutputs[-1][0])) * self.nodeOutputs[-2][inNode]])
+
                     else:
+
                         for outNode in range(len(self.weights[-1][inNode])):
                             lastLayer.append([(self.nodeOutputs[-1][outNode] - expected[outNode]) * (
+
                                 self.nodeOutputs[-1][outNode] * (1 - self.nodeOutputs[-1][outNode])) *
-                                              self.nodeOutputs[-2][inNode]])
+                                              self.nodeOutputs[-2][
+
+                                                  inNode]])
+
                 self.deltas.append(lastLayer)
+
                 layerDeltas = []
+
             elif current == len(self.weights) - 2:
+
                 layer = current
+
                 for inNode in range(len(self.weights[layer])):
+
                     weightedSum = 0
+
                     nodeDeltas = []
+
                     for outNode in range(len(self.weights[layer][inNode])):
+
                         for k in range(len(self.nodeOutputs) - 1, layer + 1, -1):
+
                             for l in range(len(self.nodeOutputs[k])):
                                 weightedSum += self.weights[k - 1][outNode][l] * (
+
                                     self.nodeOutputs[k][l] - expected[l]) * (
+
                                                    self.nodeOutputs[k][l] * (1 - self.nodeOutputs[k][l]))
+
                         nodeDeltas.append(weightedSum * (
+
                             (self.nodeOutputs[layer + 1][outNode] * (1 - self.nodeOutputs[layer + 1][outNode])) *
+
                             self.nodeOutputs[layer][inNode]))
+
                     layerDeltas.append(nodeDeltas)
+
                 self.deltas.append(layerDeltas)
+
+            else:
+
+                node2Error = []
+
+                intermediate = []
+
+                for node0 in range(len(self.nodeOutputs[0])):
+
+                    layerDeltas = []
+
+                    for node1 in range(len(self.nodeOutputs[1])):
+
+                        n1WeightedSum = 0
+
+                        for node2 in range(len(self.nodeOutputs[2])):
+
+                            weightedSum = 0
+
+                            for node3 in range(len(self.nodeOutputs[3])):
+                                weightedSum += (self.nodeOutputs[-1][node3] - expected[node3]) * (
+
+                                    self.nodeOutputs[-1][node3] * (1 - (self.nodeOutputs[-1][node3])) *
+
+                                    self.weights[-1][node2][node3])
+
+                            node2Error.append(weightedSum)
+
+                        for weights in range(len(self.weights[-2][node1])):
+                            n1WeightedSum += self.weights[-2][node1][weights] * node2Error[weights] * (
+
+                                self.nodeOutputs[2][weights] * (1 - self.nodeOutputs[2][weights]))
+
+                        layerDeltas.append(
+
+                            n1WeightedSum * (self.nodeOutputs[1][node1]) * (1 - self.nodeOutputs[1][node1]) *
+
+                            self.nodeOutputs[0][node0])
+
+                    intermediate.append(layerDeltas)
+
+                self.deltas.append(intermediate)
 
         for layer in range(len(self.weights)):  # weights
             for node in range(len(self.weights[layer])):
@@ -243,7 +306,7 @@ class Game:
         self.count = [0,0,0,0]
         if agent =="nn" and drawFold==None:
             drawFoldNN = NN
-        elif NN.structure ==(10,2,1):
+        elif NN.structure ==(20,2,1):
             drawFoldNN =drawFold
             splitNN = NN
         else:
@@ -351,8 +414,7 @@ class Game:
                             score = 12
                         else:
                             score =  dealtCards[0][1] + dealtCards[1][1]
-                        print(player.playerID + "'s cards are the", dealtCards[0][0], "and the", dealtCards[1][0],
-                                  ": Score =", score)
+                        print(player.playerID + "'s cards are the", dealtCards[0][0], "and the", dealtCards[1][0],": Score =", score)
                 else:
                     player.score= self.cards.getCardName(player.playerCards[0])[0][1]
                     if printMode:
@@ -392,7 +454,7 @@ class Game:
 
                     if double == True and player.playerID != "Dealer" and hand[1]<21 and hand[3]!=2: #double down
                         if self.agent == "nn": #make decision on doubling down
-                            decision = doubleNN.propagate([hand[1], self.playerList[0].score, hand[0]], 2)
+                            decision = doubleNN.propagate([hand[1], self.playerList[0].score, hand[0]], 1)
                         elif self.agent == "thorpe":
                             decision = self.thorpes([[hand[1], 0, hand[0]], self.playerList[0].score])
                             if decision == "D" or decision == "Ds":
@@ -432,7 +494,7 @@ class Game:
                             if self.agent == "nn":
                                 decision = drawFoldNN.propagate([playerScore, self.playerList[0].score, hand[0]],0) #make decision on whether to draw another card
                                 if hand[2] == 1: #############Review this
-                                    decision = "D"
+                                    decision = 0
                             elif self.agent == "thorpe":
                                 if hand[2]==1:
                                     decision = "D"
@@ -515,7 +577,7 @@ class Game:
                         if self.agent == "nn":
                             if drawFoldTrain:
                                 if hand[1] < 21:
-                                    drawFoldNN.BP([1])
+                                    drawFoldNN.BP([0.5])
                             elif doubleTrain and hand[2] > 0:
                                 doubleNN.BP([0.5])
                             elif splitTrain and hand[3] > 0:
@@ -551,8 +613,7 @@ class Game:
                             if self.agent =="nn":
                                 if drawFoldTrain:
                                     if hand[1] < 21:
-                                        feedback = 1-(20-hand[1])/10
-                                        #feedback = (1-((20-hand[1])*16)/100)
+                                        feedback = 1-(23-hand[1])/10
                                         #feedback = 0
                                         drawFoldNN.BP([feedback])
                                     elif hand[1] > 21:
@@ -667,10 +728,9 @@ def GA(hands, population, generations, NN, drawFold=None):
 
     overallWeights = []
     overallWin = 0
-    print("original", test(20000, NN, drawFold))
+    #print("original", test(50000, NN, drawFold))
     for generation in range(generations):  # change back to NN
         total = 0
-        start_time = time.time()
         currentWin = 0
         populationStats = []
         prevPopulationWeights = populationWeights
@@ -686,14 +746,14 @@ def GA(hands, population, generations, NN, drawFold=None):
                 else:
                     NN.weights = rando(prevPopulationWeights[2])
             else:
-                if NN.structure == (28, 2, 1):
-                    NN = NeuralNetwork((28, 2, 1), 0)
-                if NN.structure == (10, 2, 1):
-                    NN = NeuralNetwork((10, 2, 1), 0)
+                if NN.structure == (28, 10,10, 1):
+                    NN = NeuralNetwork((28, 5,5, 1), 0)
+                if NN.structure == (23, 2, 1):
+                    NN = NeuralNetwork((23, 2, 1), 0)
 
             game = Game(1, 8, hands, "nn", NN, drawFold)
             if testMode:
-                results = test(20000, NN, drawFold)
+                results = test(50000, NN, drawFold)
             else:
                 results = game.count[0] / (game.count[0] + game.count[1] + game.count[2])
             total +=results
@@ -706,13 +766,13 @@ def GA(hands, population, generations, NN, drawFold=None):
         if previousBestWin >= overallWin:
             overallWin = previousBestWin
             overallWeights = copy.deepcopy(previousBestWeights)
-        print("Generation:", generation + 1)
-        print("Best Winrate:", previousBestWin)
-        print("Average Winrate", total/population)
-        print("BestWeights", noBrac(previousBestWeights))
-        current = time.strftime("%Y-%m-%d %H:%M:%S", gmtime())
-        print(current, "--- %s seconds ---" % (time.time() - start_time),"\n")
-    return overallWeights, overallWin
+        #print("Generation:", generation + 1)
+        #print("Best Winrate:", previousBestWin)
+        #print("Average Winrate", total/population)
+        #print("BestWeights", noBrac(previousBestWeights))
+        #current = time.strftime("%Y-%m-%d %H:%M:%S", gmtime())
+        #print(current, "--- %s seconds ---" % (time.time() - start_time),"\n")
+    return total/population, overallWin
 
 class Player:
     def __init__(self, ID):
@@ -730,6 +790,7 @@ testing = False
 if __name__ == '__main__':
     if testing:
         split = True
+        double = True
         drawFoldNN = NeuralNetwork((28, 2, 1), [[[-1.99433409, -0.16893056],
        [-1.93810669, -0.06012551],
        [-2.21296894, -0.04165717],
@@ -760,73 +821,88 @@ if __name__ == '__main__':
        [-2.27765527, -0.31555621]], [[ 6.8891083 ],
        [-7.76284531]]])
 
-        splitNN = NeuralNetwork((10, 2, 1), [[[-0.5443779, -2.5452069],
-                                              [-0.42008247, -2.72465346],
-                                              [-0.95767605, -2.48412675],
-                                              [-3.26427651, -3.6975469],
-                                              [0.55126007, -2.82320133],
-                                              [0.26660524, -2.24922138],
-                                              [0.61783011, -2.52002478],
-                                              [-1.75594286, -2.74961114],
-                                              [-6.61117279, -5.04840661],
-                                              [-3.3153545, -1.30500093]], [[-1.77683956],
-                                                                           [2.16680316]]])
+        splitNN = NeuralNetwork((20, 2, 1), [[[-1.48074932, -0.80324754],
+       [-0.23129111,  0.24306769],
+       [-0.80677535, -0.86292664],
+       [-0.53216595, -1.85120961],
+       [ 0.03957243,  0.33131644],
+       [-0.01701509,  0.3460927 ],
+       [ 1.12708676,  1.03079419],
+       [-2.40284822, -2.13874851],
+       [-6.92946181, -6.54712399],
+       [ 1.53224321, -1.52887486],
+       [-0.60336987, -1.08476666],
+       [-3.13021656, -2.29262905],
+       [-1.64751716, -2.00090399],
+       [ 0.20728594, -1.20673895],
+       [-1.56692058, -2.41526051],
+       [-0.20007713, -1.03123489],
+       [-0.19032765, -0.27634442],
+       [-0.78689423, -0.24731804],
+       [-0.54484864, -0.10856676],
+       [-0.24291424,  1.59987131]], [[ 0.47539736],
+       [-2.07861082]]]
+)
+        doubleNN = NeuralNetwork((20, 2, 1),[[[ 0.73279865, -0.12722222],
+       [ 0.0618186 ,  0.20378993],
+       [ 0.0695952 ,  0.75106329],
+       [ 0.63933803, -0.81335218],
+       [ 0.51388717, -0.44933423],
+       [ 0.35533079, -0.83255283],
+       [ 1.29931298, -1.89038343],
+       [ 0.966373  , -1.96110835],
+       [-0.84931589, -0.10958536],
+       [-0.22802271,  0.47202923],
+       [-0.71088706,  0.62699635],
+       [-1.38223613,  0.75248014],
+       [-1.34274244,  0.50546741],
+       [-0.63608159, -0.04894912],
+       [-0.08494635, -0.76954787],
+       [-2.41213362, -2.7285255 ],
+       [-4.45663148, -4.79077372],
+       [ 0.25412634, -1.20231539],
+       [ 0.19541565, -1.33213688],
+       [-0.41127967, -1.87132412],
+       [-0.14966432, -1.63741183],
+       [ 0.53097483, -0.71020264],
+       [-1.41837239, -1.05569834],
+       [-1.94779585, -1.0606661 ],
+       [-0.14886425, -0.34025579],
+       [-1.07558379,  0.45667545],
+       [-0.51436259,  0.77685261],
+       [-0.12698762, -0.7888437 ]], [[ 0.34615827],
+       [-2.2712556 ]]]
+)
 
         game = Game(1, 8, 300000, "nn", drawFoldNN)
         print((game.count[0]) / (game.count[0] + game.count[1] + game.count[2]))
     else:
+        print("28-10,10-1")
         start_time = time.time()
-        hands = 5000
+        hands = 10000
         population = 30
-        generations = 2
+        generations = 10
         bestResultsArray = []
 
-        splitNN = NeuralNetwork((10, 2, 1), 0)
+        splitNN = NeuralNetwork((20, 2, 1), 0)
         doubleNN = NeuralNetwork((28, 2, 1), 0)
-        drawFoldNN = NeuralNetwork((28, 2, 1), [[[-1.99433409, -0.16893056],
-       [-1.93810669, -0.06012551],
-       [-2.21296894, -0.04165717],
-       [-4.75363294, -1.9989599 ],
-       [-4.2166781 , -1.10275383],
-       [-5.51875597, -2.81911473],
-       [-5.41274097, -2.48516174],
-       [-3.10372688, -0.09335244],
-       [-0.15180805, -0.44745286],
-       [-0.21868032, -0.03238182],
-       [ 0.31886352, -0.5140325 ],
-       [ 0.60279818, -0.25495517],
-       [ 0.90434694,  0.05117377],
-       [ 1.74803263,  0.08125182],
-       [ 3.20281511,  0.15867967],
-       [ 5.8308185 ,  1.43025001],
-       [ 3.97044563,  0.1330698 ],
-       [-1.89551796, -1.46814026],
-       [-1.20528107, -0.95539997],
-       [ 0.20340246, -0.11820735],
-       [-0.65197399, -0.10860322],
-       [ 0.23842018, -0.09716563],
-       [-1.77059357, -0.36101143],
-       [-1.41158003, -0.7375264 ],
-       [-0.9374926 , -0.40271243],
-       [-1.55481339, -0.92433024],
-       [-2.14305705, -1.07142966],
-       [-2.27765527, -0.31555621]], [[ 6.8891083 ],
-       [-7.76284531]]]
+        drawFoldNN = NeuralNetwork((28, 10,10, 1),0
 )
-        for nn in [splitNN]:  # ,doubleNN, splitNN
-            if nn == splitNN or nn == doubleNN:
-                weights, winRate = GA(hands, population, generations, nn, drawFoldNN)
-            else:
-                weights, winRate = GA(hands, population, generations, nn)
-            bestResultsArray.append(winRate)
-            bestWeightsArray.append(weights)
-        print("best win", bestResultsArray)
-        print("best weights", bestWeightsArray)
-
+        for i in range(5):
+            drawFoldNN = NeuralNetwork((28, 10,10, 1), 0)
+            for nn in [drawFoldNN]:  # ,doubleNN, splitNN
+                if nn == splitNN or nn == doubleNN:
+                    weights, winRate = GA(hands, population, generations, nn, drawFoldNN)
+                else:
+                    weights, winRate = GA(hands, population, generations, nn)
+                if nn == drawFoldNN:
+                    drawFoldNN.weights = weights
+                bestResultsArray.append(winRate)
+                bestWeightsArray.append(weights)
+                #if nn == drawFoldNN:
+                #drawFoldNN = copy.deepcopy(bestWeightsArray[0])
+        print("best win", bestResultsArray,"\n")
+        print("average win", bestWeightsArray, "\n")
             #for i in bestWeightsArray:
-            #print("weights",noBrac(i))
-
-     #+ (Game.count[3]*0.5)
-    #print((Game.count[1]) / (Game.count[0] + Game.count[1] + Game.count[2]))  # + (Game.count[3]*0.5)
-    #print((Game.count[2]) / (Game.count[0] + Game.count[1] + Game.count[2]))  # + (Game.count[3]*0.5)
-    #print(Game.count[3])
+            #print(noBrac(i),"\n")
+            #print("Final agent")
